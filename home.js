@@ -289,9 +289,6 @@ ctx.moveTo(8, 0);
 ctx.lineTo(-4, -6);
 ctx.lineTo(-4, -2);
 ctx.lineTo(-12, -2);
-ctx.lineTo(-12, 2);
-ctx.lineTo(-4, 2);
-ctx.lineTo(-4, 6);
 ctx.closePath();
 ctx.fill();
 }
