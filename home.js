@@ -1,3 +1,5 @@
+
+
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const mainMenu = document.getElementById('main-menu');
@@ -18,7 +20,7 @@ const hero = {
     flashState: false
 };
 
-// 🗺️ 5-Area Grid System Configuration
+// 🗺️ 5 NEW LEVEL AREAS MAP MATRIX
 let currentRoomX = 0;
 let currentRoomY = 0;
 
@@ -48,7 +50,6 @@ const worldMap = {
 };
 
 const spells = [];
-let arrowPulse = 0; // Visual ticker for the guide arrow animation
 
 function getActiveRoom() {
     return worldMap[`${currentRoomX},${currentRoomY}`] || worldMap["0,0"];
@@ -75,7 +76,7 @@ function startGame() {
         hero.invincible = false;
         currentRoomX = 0; currentRoomY = 0;
         
-        // Refresh level map layouts completely
+        // Refresh level maps state
         worldMap["0,0"].monsters = [{ x: 150, y: 200, width: 32, height: 32, speed: 2.5, dirX: 1, dirY: 0, health: 4, steps: 20, aggroRange: 250, type: 'regular' }];
         worldMap["1,0"].monsters = [{ x: 200, y: 150, width: 32, height: 32, speed: 2.5, dirX: 0, dirY: 1, health: 4, steps: 20, aggroRange: 250, type: 'regular' }];
         worldMap["2,0"].monsters = [{ x: 400, y: 150, width: 32, height: 32, speed: 2.5, dirX: -1, dirY: 0, health: 4, steps: 20, aggroRange: 250, type: 'regular' }];
@@ -91,9 +92,10 @@ window.addEventListener('keydown', (e) => {
     keys[e.code] = true; 
     startGame();
     
+    // Weapon Switch hotkeys
     if (e.code === 'Digit1') hero.currentWeapon = 'sword';
     if (e.code === 'Digit2') hero.currentWeapon = 'staff';
-    if (e.code === 'Digit3') hero.currentWeapon = 'hammer';
+    if (e.code === 'Digit3') hero.currentWeapon = 'hammer'; // 🔨 New Weapon!
 });
 window.addEventListener('mousedown', () => { startGame(); });
 window.addEventListener('keyup', (e) => { keys[e.code] = false; });
@@ -124,10 +126,10 @@ function handleInput() {
         hero.isAttacking = true;
         if (hero.currentWeapon === 'sword') {
             hero.attackTimer = 10;
-            executeMeleeAttack(24, 2, 50); 
+            executeMeleeAttack(24, 2, 50); // 🌪️ Sword knockback force
         } else if (hero.currentWeapon === 'hammer') {
             hero.attackTimer = 22;
-            executeMeleeAttack(36, 4, 95); 
+            executeMeleeAttack(36, 4, 95); // 🔨 Massive Hammer knockback
         } else if (hero.currentWeapon === 'staff') {
             hero.attackTimer = 15;
             spells.push({ x: hero.x + 8, y: hero.y + 8, width: 12, height: 12, velX: hero.dirX * 6, velY: hero.dirY * 6 });
@@ -153,7 +155,6 @@ function executeMeleeAttack(range, damage, knockbackForce) {
 function update() {
     if (gameState !== "PLAYING") return;
     const room = getActiveRoom();
-    arrowPulse += 0.15; // Pulse the visual navigation layout ticker
 
     if (hero.isAttacking) {
         hero.attackTimer--;
@@ -166,7 +167,7 @@ function update() {
         if (hero.invincibleTimer <= 0) { hero.invincible = false; hero.flashState = false; }
     }
 
-    // Room transition checks
+    // 🗺️ Room bounds tracking loops (Moves across 5 areas)
     if (hero.x > VIRTUAL_WIDTH - 20 && currentRoomX < 2) { currentRoomX++; hero.x = 35; spells.length = 0; }
     else if (hero.x < 15 && currentRoomX > 0) { currentRoomX--; hero.x = VIRTUAL_WIDTH - 40; spells.length = 0; }
     if (hero.y > VIRTUAL_HEIGHT - 20 && currentRoomY < 1) { currentRoomY++; hero.y = 55; spells.length = 0; }
@@ -190,39 +191,38 @@ function update() {
         }
     }
 
-    // 🟢 FIXED ENEMY AI ENGINE Patched to prevent freeze states
     for (let m of room.monsters) {
         let diffX = hero.x - m.x;
         let diffY = hero.y - m.y;
         let distance = Math.sqrt(diffX * diffX + diffY * diffY);
 
         if (distance < m.aggroRange) {
-            // Player tracking movement pattern
             if (Math.abs(diffX) > Math.abs(diffY)) { m.dirX = diffX > 0 ? 1 : -1; m.dirY = 0; } 
             else { m.dirX = 0; m.dirY = diffY > 0 ? 1 : -1; }
-        } else {
-            // Fallback idle wander patrol path loop so monsters NEVER freeze
-            m.steps--;
-            if (m.steps <= 0) {
-                m.steps = Math.floor(Math.random() * 30) + 20;
-                let r = Math.random();
-                if (r < 0.25) { m.dirX = 1; m.dirY = 0; } else if (r < 0.5) { m.dirX = -1; m.dirY = 0; }
-                else if (r < 0.75) { m.dirX = 0; m.dirY = 1; } else { m.dirX = 0; m.dirY = -1; }
-            }
         }
-        
         m.x += m.dirX * m.speed; m.y += m.dirY * m.speed;
-        
-        // Wall collision correction for monsters
-        for (let obs of room.obstacles) {
-            if (checkCollision(m, obs)) {
-                m.x -= m.dirX * m.speed; 
-                m.y -= m.dirY * m.speed;
-                m.steps = 0; // force dynamic redirection tick
-            }
-        }
+        for (let obs of room.obstacles) if (checkCollision(m, obs)) { m.x -= m.dirX * m.speed; m.y -= m.dirY * m.speed; }
 
-Use code with caution.
+        if (checkCollision(hero, m) && !hero.invincible) {
+            hero.health--;
+            hero.invincible = true;
+            hero.invincibleTimer = 35; 
+            hero.x += m.dirX * 45;
+            hero.y += m.dirY * 45;
+            if (hero.health <= 0) gameState = "GAMEOVER";
+        }
+    }
+}
+
+function draw() {
+    ctx.clearRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+    const room = getActiveRoom();
+
+    if (gameState === "GAMEOVER") {
+        ctx.fillStyle = "rgba(0, 0, 0, 0.85)"; ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+        ctx.fillStyle = "#ff3f34"; ctx.font = 'bold 36px "Courier New"'; ctx.textAlign = "center";
+        ctx.fillText("GAME OVER", VIRTUAL_WIDTH / 2, VIRTUAL_HEIGHT / 2 - 20);
+        ctx.fillStyle = "#ffffff"; ctx.font = '16px "Courier New"';
 if (checkCollision(hero, m) && !hero.invincible) {
 hero.health--;
 hero.invincible = true;
@@ -289,6 +289,9 @@ ctx.moveTo(8, 0);
 ctx.lineTo(-4, -6);
 ctx.lineTo(-4, -2);
 ctx.lineTo(-12, -2);
+ctx.lineTo(-12, 2);
+ctx.lineTo(-4, 2);
+ctx.lineTo(-4, 6);
 ctx.closePath();
 ctx.fill();
 }
