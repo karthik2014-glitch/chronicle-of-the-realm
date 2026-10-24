@@ -1,5 +1,4 @@
-
-
+tsString += "🖤";
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const mainMenu = document.getElementById('main-menu');
@@ -20,7 +19,7 @@ const hero = {
     flashState: false
 };
 
-// 🗺️ 5 NEW LEVEL AREAS MAP MATRIX
+// 🗺️ 5-Area Map Grid Configuration
 let currentRoomX = 0;
 let currentRoomY = 0;
 
@@ -50,6 +49,7 @@ const worldMap = {
 };
 
 const spells = [];
+let arrowPulse = 0; 
 
 function getActiveRoom() {
     return worldMap[`${currentRoomX},${currentRoomY}`] || worldMap["0,0"];
@@ -76,15 +76,17 @@ function startGame() {
         hero.invincible = false;
         currentRoomX = 0; currentRoomY = 0;
         
-        // Refresh level maps state
+        // Fully reload layout states on start trigger
         worldMap["0,0"].monsters = [{ x: 150, y: 200, width: 32, height: 32, speed: 2.5, dirX: 1, dirY: 0, health: 4, steps: 20, aggroRange: 250, type: 'regular' }];
         worldMap["1,0"].monsters = [{ x: 200, y: 150, width: 32, height: 32, speed: 2.5, dirX: 0, dirY: 1, health: 4, steps: 20, aggroRange: 250, type: 'regular' }];
         worldMap["2,0"].monsters = [{ x: 400, y: 150, width: 32, height: 32, speed: 2.5, dirX: -1, dirY: 0, health: 4, steps: 20, aggroRange: 250, type: 'regular' }];
         worldMap["0,1"].monsters = [{ x: 450, y: 240, width: 32, height: 32, speed: 2.5, dirX: 1, dirY: 0, health: 4, steps: 20, aggroRange: 250, type: 'regular' }];
         worldMap["1,1"].monsters = [{ x: 300, y: 200, width: 52, height: 52, speed: 2.6, dirX: 0, dirY: 1, health: 16, maxHealth: 16, steps: 10, aggroRange: 400, type: 'miniboss' }];
         
-        mainMenu.style.opacity = 0;
-        setTimeout(() => { mainMenu.style.display = 'none'; }, 400);
+        if (mainMenu) {
+            mainMenu.style.opacity = 0;
+            setTimeout(() => { mainMenu.style.display = 'none'; }, 400);
+        }
     }
 }
 
@@ -92,10 +94,9 @@ window.addEventListener('keydown', (e) => {
     keys[e.code] = true; 
     startGame();
     
-    // Weapon Switch hotkeys
     if (e.code === 'Digit1') hero.currentWeapon = 'sword';
     if (e.code === 'Digit2') hero.currentWeapon = 'staff';
-    if (e.code === 'Digit3') hero.currentWeapon = 'hammer'; // 🔨 New Weapon!
+    if (e.code === 'Digit3') hero.currentWeapon = 'hammer';
 });
 window.addEventListener('mousedown', () => { startGame(); });
 window.addEventListener('keyup', (e) => { keys[e.code] = false; });
@@ -126,10 +127,10 @@ function handleInput() {
         hero.isAttacking = true;
         if (hero.currentWeapon === 'sword') {
             hero.attackTimer = 10;
-            executeMeleeAttack(24, 2, 50); // 🌪️ Sword knockback force
+            executeMeleeAttack(24, 2, 50); 
         } else if (hero.currentWeapon === 'hammer') {
             hero.attackTimer = 22;
-            executeMeleeAttack(36, 4, 95); // 🔨 Massive Hammer knockback
+            executeMeleeAttack(36, 4, 95); 
         } else if (hero.currentWeapon === 'staff') {
             hero.attackTimer = 15;
             spells.push({ x: hero.x + 8, y: hero.y + 8, width: 12, height: 12, velX: hero.dirX * 6, velY: hero.dirY * 6 });
@@ -155,6 +156,7 @@ function executeMeleeAttack(range, damage, knockbackForce) {
 function update() {
     if (gameState !== "PLAYING") return;
     const room = getActiveRoom();
+    arrowPulse += 0.15; 
 
     if (hero.isAttacking) {
         hero.attackTimer--;
@@ -167,7 +169,7 @@ function update() {
         if (hero.invincibleTimer <= 0) { hero.invincible = false; hero.flashState = false; }
     }
 
-    // 🗺️ Room bounds tracking loops (Moves across 5 areas)
+    // Level map boundary adjustments
     if (hero.x > VIRTUAL_WIDTH - 20 && currentRoomX < 2) { currentRoomX++; hero.x = 35; spells.length = 0; }
     else if (hero.x < 15 && currentRoomX > 0) { currentRoomX--; hero.x = VIRTUAL_WIDTH - 40; spells.length = 0; }
     if (hero.y > VIRTUAL_HEIGHT - 20 && currentRoomY < 1) { currentRoomY++; hero.y = 55; spells.length = 0; }
@@ -191,6 +193,7 @@ function update() {
         }
     }
 
+    // 🟢 ENEMY AI: Guaranteed fallback system prevents script lockups
     for (let m of room.monsters) {
         let diffX = hero.x - m.x;
         let diffY = hero.y - m.y;
@@ -199,9 +202,23 @@ function update() {
         if (distance < m.aggroRange) {
             if (Math.abs(diffX) > Math.abs(diffY)) { m.dirX = diffX > 0 ? 1 : -1; m.dirY = 0; } 
             else { m.dirX = 0; m.dirY = diffY > 0 ? 1 : -1; }
+        } else {
+            m.steps--;
+            if (m.steps <= 0) {
+                m.steps = Math.floor(Math.random() * 30) + 20;
+                let r = Math.random();
+                if (r < 0.25) { m.dirX = 1; m.dirY = 0; } else if (r < 0.5) { m.dirX = -1; m.dirY = 0; }
+                else if (r < 0.75) { m.dirX = 0; m.dirY = 1; } else { m.dirX = 0; m.dirY = -1; }
+            }
         }
+        
         m.x += m.dirX * m.speed; m.y += m.dirY * m.speed;
-        for (let obs of room.obstacles) if (checkCollision(m, obs)) { m.x -= m.dirX * m.speed; m.y -= m.dirY * m.speed; }
+        for (let obs of room.obstacles) {
+            if (checkCollision(m, obs)) {
+                m.x -= m.dirX * m.speed; m.y -= m.dirY * m.speed;
+                m.steps = 0;
+            }
+        }
 
         if (checkCollision(hero, m) && !hero.invincible) {
             hero.health--;
@@ -211,31 +228,16 @@ function update() {
             hero.y += m.dirY * 45;
             if (hero.health <= 0) gameState = "GAMEOVER";
         }
-    }
-}
-
-function draw() {
-    ctx.clearRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
-    const room = getActiveRoom();
-
-    if (gameState === "GAMEOVER") {
-        ctx.fillStyle = "rgba(0, 0, 0, 0.85)"; ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
-        ctx.fillStyle = "#ff3f34"; ctx.font = 'bold 36px "Courier New"'; ctx.textAlign = "center";
-        ctx.fillText("GAME OVER", VIRTUAL_WIDTH / 2, VIRTUAL_HEIGHT / 2 - 20);
-        ctx.fillStyle = "#ffffff"; ctx.font = '16px "Courier New"';
-if (checkCollision(hero, m) && !hero.invincible) {
-hero.health--;
-hero.invincible = true;
-hero.invincibleTimer = 35;
-hero.x += m.dirX * 45;
-hero.y += m.dirY * 45;
-if (hero.health <= 0) gameState = "GAMEOVER";
-}
+Use code with caution.
 }
 }
 function draw() {
 ctx.clearRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
 const room = getActiveRoom();
+// 🟢 FIXED: Force drawing the environment layers even on initial "MENU" screen loop load states
+// Terrain Blocks
+ctx.fillStyle = '#4a3319';
+for (let obs of room.obstacles) ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
 if (gameState === "GAMEOVER") {
 ctx.fillStyle = "rgba(0, 0, 0, 0.85)"; ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
 ctx.fillStyle = "#ff3f34"; ctx.font = 'bold 36px "Courier New"'; ctx.textAlign = "center";
@@ -244,23 +246,23 @@ ctx.fillStyle = "#ffffff"; ctx.font = '16px "Courier New"';
 ctx.fillText("PRESS ANY KEY TO RETRY", VIRTUAL_WIDTH / 2, VIRTUAL_HEIGHT / 2 + 30);
 ctx.textAlign = "left"; return;
 }
-// Terrain Obstacles
-ctx.fillStyle = '#4a3319';
-for (let obs of room.obstacles) ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+if (gameState === "MENU") {
+// Keeps the game screen populated underneath the startup box overlay instead of going pure black
+ctx.fillStyle = '#e67e22'; ctx.fillRect(hero.x, hero.y, hero.width, hero.height);
+return;
+}
 // Spells
 ctx.fillStyle = '#00ffff';
 for (let s of spells) ctx.fillRect(s.x, s.y, s.width, s.height);
 // Monsters
 for (let m of room.monsters) {
 if (m.type === 'miniboss') {
-ctx.fillStyle = '#ef5350';
-ctx.fillRect(m.x, m.y, m.width, m.height);
+ctx.fillStyle = '#ef5350'; ctx.fillRect(m.x, m.y, m.width, m.height);
 ctx.fillStyle = '#ffff00'; ctx.fillRect(m.x+8, m.y+10, 6, 6); ctx.fillRect(m.x+36, m.y+10, 6, 6);
 ctx.fillStyle = '#222'; ctx.fillRect(m.x - 5, m.y - 12, m.width + 10, 5);
 ctx.fillStyle = '#ff0000'; ctx.fillRect(m.x - 5, m.y - 12, (m.width + 10) * (m.health / m.maxHealth), 5);
 } else {
-ctx.fillStyle = '#9b59b6';
-ctx.fillRect(m.x, m.y, m.width, m.height);
+ctx.fillStyle = '#9b59b6'; ctx.fillRect(m.x, m.y, m.width, m.height);
 }
 }
 // Hero Character Model
@@ -268,35 +270,22 @@ ctx.fillStyle = hero.flashState ? '#ff4d4d' : '#e67e22';
 ctx.fillRect(hero.x, hero.y, hero.width, hero.height);
 ctx.fillStyle = '#f1c40f';
 ctx.fillRect(hero.x + (hero.dirX * 4) + 6, hero.y + (hero.dirY * 4) + 6, 12, 6);
-// 🟢 NEW: NEON MAP NAVIGATION INDICATOR ARROW
-if (gameState === "PLAYING") {
+// PULSING NEON MAP NAVIGATION INDICATOR ARROW
 ctx.save();
-// Position arrow directly above the hero's head with a pulsing float effect
 let arrowY = hero.y - 18 + Math.sin(arrowPulse) * 4;
 ctx.translate(hero.x + hero.width / 2, arrowY);
-// Calculate dynamic directional rotation targeting the Boss Lair at room coordinates [1,1]
 let angle = 0;
-if (currentRoomX === 0 && currentRoomY === 0) angle = 0.78; // Points Down-Right (East then South)
-else if (currentRoomX === 1 && currentRoomY === 0) angle = 1.57; // Points straight Down (South)
-else if (currentRoomX === 2 && currentRoomY === 0) angle = 2.35; // Points Down-Left (West then South)
-else if (currentRoomX === 0 && currentRoomY === 1) angle = 0;    // Points straight Right (East)
+if (currentRoomX === 0 && currentRoomY === 0) angle = 0.78; // Down-Right
+else if (currentRoomX === 1 && currentRoomY === 0) angle = 1.57; // Straight Down
+else if (currentRoomX === 2 && currentRoomY === 0) angle = 2.35; // Down-Left
+else if (currentRoomX === 0 && currentRoomY === 1) angle = 0;    // Straight Right
 ctx.rotate(angle);
-// Draw neon green arrow geometry path if boss isn't dead on screen
 if (!(currentRoomX === 1 && currentRoomY === 1 && room.monsters.length === 0)) {
 ctx.fillStyle = '#1dd1a1';
-ctx.beginPath();
-ctx.moveTo(8, 0);
-ctx.lineTo(-4, -6);
-ctx.lineTo(-4, -2);
-ctx.lineTo(-12, -2);
-ctx.lineTo(-12, 2);
-ctx.lineTo(-4, 2);
-ctx.lineTo(-4, 6);
-ctx.closePath();
-ctx.fill();
+ctx.beginPath(); ctx.moveTo(8, 0); ctx.lineTo(-4, -6); ctx.lineTo(-4, -2); ctx.lineTo(-12, -2);
+ctx.lineTo(-12, 2); ctx.lineTo(-4, 2); ctx.lineTo(-4, 6); ctx.closePath(); ctx.fill();
 }
 ctx.restore();
-}
 if (hero.isAttacking) {
 ctx.fillStyle = hero.currentWeapon === 'sword' ? 'rgba(241, 196, 15, 0.7)' : 'rgba(149, 165, 166, 0.8)';
 if (hero.currentWeapon !== 'staff') ctx.fillRect(hero.x + hero.dirX * 22, hero.y + hero.dirY * 22, 20, 20);
@@ -318,8 +307,5 @@ function loop() {
 handleInput();
 update();
 draw();
-requestAnimationFrame(loop);
+requestAnimationFrame(loop); // 🟢 HIGH-PERFORMANCE RUNNER EXECUTOR
 }
-loop();
-
-
